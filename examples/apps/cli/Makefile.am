@@ -37,6 +37,10 @@ CPPFLAGS_COMMON                                                       += \
     -I$(top_srcdir)/src                                                  \
     -I$(top_srcdir)/src/core                                             \
     -I$(top_srcdir)/examples/platforms                                   \
+    -I$(top_srcdir)/third_party/mdnsresponder/ServiceRegistration        \
+    -I$(top_srcdir)/third_party/mdnsresponder/mDNSShared                 \
+    -I$(top_srcdir)/third_party/mbedtls/repo/include/mbedtls             \
+    -DSRP_CRYPTO_MBEDTLS						 \
     $(NULL)
 
 LDADD_COMMON                                                          += \
@@ -50,6 +54,11 @@ LIBTOOLFLAGS_COMMON                                                   += \
 
 SOURCES_COMMON                                                        += \
     main.c                                                               \
+    ../../../third_party/mdnsresponder/ServiceRegistration/srp-client.c  \
+    ../../../third_party/mdnsresponder/ServiceRegistration/srp-thread.c  \
+    ../../../third_party/mdnsresponder/ServiceRegistration/sign-mbedtls.c \
+    ../../../third_party/mdnsresponder/ServiceRegistration/towire.c 	 \
+    ../../../third_party/mdnsresponder/mDNSShared/dnssd_clientlib.c      \
     $(NULL)
 
 if OPENTHREAD_ENABLE_BUILTIN_MBEDTLS

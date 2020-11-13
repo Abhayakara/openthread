@@ -31,26 +31,52 @@ import unittest
 
 import config
 import thread_cert
-from pktverify.consts import MLE_PARENT_RESPONSE, MLE_CHILD_ID_RESPONSE
+from pktverify.consts import MLE_PARENT_RESPONSE, MLE_CHILD_ID_RESPONSE, SOURCE_ADDRESS_TLV, CHALLENGE_TLV, RESPONSE_TLV, LINK_LAYER_FRAME_COUNTER_TLV, ADDRESS16_TLV, LEADER_DATA_TLV, NETWORK_DATA_TLV, CONNECTIVITY_TLV, LINK_MARGIN_TLV, VERSION_TLV, ADDRESS_REGISTRATION_TLV
 from pktverify.packet_verifier import PacketVerifier
+from pktverify.null_field import nullField
 
 LEADER = 1
 ROUTER = 2
 SED1 = 7
 
+# Test Purpose and Description:
+# -----------------------------
+# The purpose of this test case is to validate the minimum
+# conformance requirements for router-capable devices:
+# a)Minimum number of supported children.
+# b)Minimum MTU requirement when sending/forwarding an
+#   IPv6 datagram to a SED.
+# c)Minimum number of sent/forwarded IPv6 datagrams to
+#   SED children.
+#
+# Test Topology:
+# -------------
+#
+#         Leader
+#           |
+#       Router[DUT]
+#      /          \
+# MED1 - MED4 SED1 - SED6
+#
+# DUT Types:
+# ----------
+#  Router
+
 
 class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
+    USE_MESSAGE_FACTORY = False
+
     TOPOLOGY = {
         LEADER: {
             'name': 'LEADER',
-            'mode': 'rsdn',
+            'mode': 'rdn',
             'panid': 0xface,
             'allowlist': [ROUTER]
         },
         ROUTER: {
             'name': 'ROUTER',
             'max_children': 10,
-            'mode': 'rsdn',
+            'mode': 'rdn',
             'panid': 0xface,
             'router_selection_jitter': 1,
             'allowlist': [LEADER, 3, 4, 5, 6, SED1, 8, 9, 10, 11, 12]
@@ -58,7 +84,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         3: {
             'name': 'MED1',
             'is_mtd': True,
-            'mode': 'rsn',
+            'mode': 'rn',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -66,7 +92,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         4: {
             'name': 'MED2',
             'is_mtd': True,
-            'mode': 'rsn',
+            'mode': 'rn',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -74,7 +100,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         5: {
             'name': 'MED3',
             'is_mtd': True,
-            'mode': 'rsn',
+            'mode': 'rn',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -82,7 +108,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         6: {
             'name': 'MED4',
             'is_mtd': True,
-            'mode': 'rsn',
+            'mode': 'rn',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -90,7 +116,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         SED1: {
             'name': 'SED1',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -98,7 +124,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         8: {
             'name': 'SED2',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -106,7 +132,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         9: {
             'name': 'SED3',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -114,7 +140,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         10: {
             'name': 'SED4',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -122,7 +148,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         11: {
             'name': 'SED5',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -130,7 +156,7 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         12: {
             'name': 'SED6',
             'is_mtd': True,
-            'mode': 's',
+            'mode': '-',
             'panid': 0xface,
             'timeout': config.DEFAULT_CHILD_TIMEOUT,
             'allowlist': [ROUTER]
@@ -178,13 +204,61 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         #         and MLE Child ID Response to each child.
         for i in range(1, 7):
             _pkts = router_pkts.copy().filter_wpan_dst64(pv.vars['SED%d' % i])
-            _pkts.filter_mle_cmd(MLE_PARENT_RESPONSE).must_next()
-            _pkts.filter_mle_cmd(MLE_CHILD_ID_RESPONSE).must_next()
+            _pkts.filter_mle_cmd(MLE_PARENT_RESPONSE).\
+                filter(lambda p: {
+                                  CHALLENGE_TLV,
+                                  CONNECTIVITY_TLV,
+                                  LEADER_DATA_TLV,
+                                  LINK_LAYER_FRAME_COUNTER_TLV,
+                                  LINK_MARGIN_TLV,
+                                  RESPONSE_TLV,
+                                  SOURCE_ADDRESS_TLV,
+                                  VERSION_TLV
+                                } <= set(p.mle.tlv.type)
+                       ).\
+                must_next()
+            _pkts.filter_mle_cmd(MLE_CHILD_ID_RESPONSE).\
+                filter(lambda p: {
+                                  SOURCE_ADDRESS_TLV,
+                                  LEADER_DATA_TLV,
+                                  ADDRESS16_TLV,
+                                  NETWORK_DATA_TLV,
+                                  ADDRESS_REGISTRATION_TLV
+                        } <= set(p.mle.tlv.type) and\
+                       p.mle.tlv.addr16 is not nullField and\
+                       p.thread_nwd.tlv.type is not None and\
+                       p.thread_meshcop.tlv.type is not None
+                       ).\
+                must_next()
 
         for i in range(1, 5):
             _pkts = router_pkts.copy().filter_wpan_dst64(pv.vars['MED%d' % i])
-            _pkts.filter_mle_cmd(MLE_PARENT_RESPONSE).must_next()
-            _pkts.filter_mle_cmd(MLE_CHILD_ID_RESPONSE).must_next()
+            _pkts.filter_mle_cmd(MLE_PARENT_RESPONSE).\
+                filter(lambda p: {
+                                  CHALLENGE_TLV,
+                                  CONNECTIVITY_TLV,
+                                  LEADER_DATA_TLV,
+                                  LINK_LAYER_FRAME_COUNTER_TLV,
+                                  LINK_MARGIN_TLV,
+                                  RESPONSE_TLV,
+                                  SOURCE_ADDRESS_TLV,
+                                  VERSION_TLV
+                                } <= set(p.mle.tlv.type)
+                       ).\
+                must_next()
+
+            _pkts.filter_mle_cmd(MLE_CHILD_ID_RESPONSE).\
+                filter(lambda p: {
+                                  SOURCE_ADDRESS_TLV,
+                                  LEADER_DATA_TLV,
+                                  ADDRESS16_TLV,
+                                  NETWORK_DATA_TLV,
+                                  ADDRESS_REGISTRATION_TLV
+                        } <= set(p.mle.tlv.type) and\
+                       p.mle.tlv.addr16 is not nullField and\
+                       p.thread_meshcop.tlv.type is not None
+                       ).\
+                must_next()
 
         # Step 2: The DUT MUST properly forward ICMPv6 Echo Requests to all MED children
         #         The DUT MUST properly forward ICMPv6 Echo Replies to the Leader
@@ -192,18 +266,26 @@ class Cert_5_1_07_MaxChildCount(thread_cert.TestCase):
         for i in range(1, 5):
             rloc16 = pv.vars['MED%d_RLOC16' % i]
             _pkts = router_pkts.copy()
-            p = _pkts.filter('wpan.dst16 == {rloc16}', rloc16=rloc16).filter_ping_request().must_next()
+            p = _pkts.filter('wpan.dst16 == {rloc16}', rloc16=rloc16).\
+                filter_ping_request().\
+                must_next()
             _pkts.filter('wpan.dst16 == {rloc16}',
-                         rloc16=leader_rloc16).filter_ping_reply(identifier=p.icmpv6.echo.identifier).must_next()
+                         rloc16=leader_rloc16).\
+                  filter_ping_reply(identifier=p.icmpv6.echo.identifier).\
+                  must_next()
 
         # Step 3: The DUT MUST properly forward ICMPv6 Echo Requests to all SED children
         #         The DUT MUST properly forward ICMPv6 Echo Replies to the Leader
         for i in range(1, 7):
             rloc16 = pv.vars['SED%d_RLOC16' % i]
             _pkts = router_pkts.copy()
-            p = _pkts.filter('wpan.dst16 == {rloc16}', rloc16=rloc16).filter_ping_request().must_next()
+            p = _pkts.filter('wpan.dst16 == {rloc16}', rloc16=rloc16).\
+                filter_ping_request().\
+                must_next()
             _pkts.filter('wpan.dst16 == {rloc16}',
-                         rloc16=leader_rloc16).filter_ping_reply(identifier=p.icmpv6.echo.identifier).must_next()
+                         rloc16=leader_rloc16).\
+                  filter_ping_reply(identifier=p.icmpv6.echo.identifier).\
+                  must_next()
 
 
 if __name__ == '__main__':

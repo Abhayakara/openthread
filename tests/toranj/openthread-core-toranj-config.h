@@ -64,6 +64,14 @@
 #define OPENTHREAD_CONFIG_COMMISSIONER_MAX_JOINER_ENTRIES 4
 
 /**
+ * @def OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE
+ *
+ * Define to 1 to enable Border Agent support.
+ *
+ */
+#define OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE 1
+
+/**
  * @def OPENTHREAD_CONFIG_DIAG_ENABLE
  *
  * Define to 1 to enable Factory Diagnostics support.
@@ -110,6 +118,14 @@
  *
  */
 #define OPENTHREAD_CONFIG_NUM_MESSAGE_BUFFERS 256
+
+/**
+ * @def OPENTHREAD_CONFIG_MESSAGE_USE_HEAP_ENABLE
+ *
+ * Whether use heap allocator for message buffers.
+ *
+ */
+#define OPENTHREAD_CONFIG_MESSAGE_USE_HEAP_ENABLE 1
 
 /**
  * @def OPENTHREAD_CONFIG_TMF_ADDRESS_CACHE_ENTRIES

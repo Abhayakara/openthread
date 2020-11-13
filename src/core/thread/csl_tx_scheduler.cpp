@@ -75,9 +75,7 @@ void CslTxScheduler::InitFrameRequestAhead(void)
     // longest frame on bus is 127 bytes with some metadata, use 150 bytes for bus Tx time estimation
     uint32_t busTxTimeUs = ((busSpeedHz == 0) ? 0 : (150 * 8 * 1000000 + busSpeedHz - 1) / busSpeedHz);
 
-    // Use ceiling to get next closest integer
-    mCslFrameRequestAhead =
-        (OPENTHREAD_CONFIG_MAC_CSL_REQUEST_AHEAD_US + busTxTimeUs + kUsPerTenSymbols - 1) / kUsPerTenSymbols;
+    mCslFrameRequestAheadUs = OPENTHREAD_CONFIG_MAC_CSL_REQUEST_AHEAD_US + busTxTimeUs;
 }
 
 void CslTxScheduler::Update(void)
@@ -128,6 +126,7 @@ void CslTxScheduler::RescheduleCslTx(void)
     for (Child &child : Get<ChildTable>().Iterate(Child::kInStateAnyExceptInvalid))
     {
         uint32_t delay;
+        uint32_t cslTxDelay;
 
         if (!child.IsCslSynchronized() || child.GetIndirectMessageCount() == 0 ||
             child.GetCslTxAttempts() >= kMaxCslTriggeredTxAttempts)
@@ -135,7 +134,8 @@ void CslTxScheduler::RescheduleCslTx(void)
             continue;
         }
 
-        delay = GetNextCslTransmissionDelay(child, radioNow);
+        delay = GetNextCslTransmissionDelay(child, radioNow, cslTxDelay);
+
         if (delay < minDelayTime)
         {
             minDelayTime = delay;
@@ -151,28 +151,25 @@ void CslTxScheduler::RescheduleCslTx(void)
     mCslTxChild = bestChild;
 }
 
-uint32_t CslTxScheduler::GetNextCslTransmissionDelay(const Child &aChild, uint64_t aRadioNow)
+uint32_t CslTxScheduler::GetNextCslTransmissionDelay(const Child &aChild,
+                                                     uint64_t     aRadioNow,
+                                                     uint32_t &   aDelayFromLastRx) const
 {
-    uint32_t delay;
-    uint16_t period_offset = (aRadioNow / kUsPerTenSymbols) % aChild.GetCslPeriod();
+    uint32_t periodInUs    = aChild.GetCslPeriod() * kUsPerTenSymbols;
+    uint64_t firstTxWindow = aChild.GetLastRxTimestamp() + aChild.GetCslPhase() * kUsPerTenSymbols;
+    uint64_t nextTxWindow  = aRadioNow - (aRadioNow % periodInUs) + (firstTxWindow % periodInUs);
 
-    if (aChild.GetCslPhase() > period_offset + mCslFrameRequestAhead)
-    {
-        delay = static_cast<uint16_t>(aChild.GetCslPhase() - period_offset - mCslFrameRequestAhead) * kUsPerTenSymbols;
-    }
-    else
-    {
-        delay = static_cast<uint16_t>(aChild.GetCslPeriod() + aChild.GetCslPhase() - period_offset -
-                                      mCslFrameRequestAhead) *
-                kUsPerTenSymbols;
-    }
+    while (aRadioNow + mCslFrameRequestAheadUs >= nextTxWindow) nextTxWindow += periodInUs;
 
-    return delay;
+    aDelayFromLastRx = static_cast<uint32_t>(nextTxWindow - aChild.GetLastRxTimestamp());
+
+    return static_cast<uint32_t>(nextTxWindow - aRadioNow - mCslFrameRequestAheadUs);
 }
 
 otError CslTxScheduler::HandleFrameRequest(Mac::TxFrame &aFrame)
 {
-    otError error = OT_ERROR_NONE;
+    otError  error = OT_ERROR_NONE;
+    uint32_t txDelay;
 
     VerifyOrExit(mCslTxChild != nullptr, error = OT_ERROR_ABORT);
 
@@ -200,9 +197,14 @@ otError CslTxScheduler::HandleFrameRequest(Mac::TxFrame &aFrame)
         aFrame.SetIsARetransmission(false);
     }
 
-    aFrame.SetChannel(mCslTxChild->GetCslChannel());
-    aFrame.SetTxPhase(mCslTxChild->GetCslPhase());
-    aFrame.SetTxPeriod(mCslTxChild->GetCslPeriod());
+    aFrame.SetChannel(mCslTxChild->GetCslChannel() == 0 ? Get<Mac::Mac>().GetPanChannel()
+                                                        : mCslTxChild->GetCslChannel());
+
+    GetNextCslTransmissionDelay(*mCslTxChild, otPlatRadioGetNow(&GetInstance()), txDelay);
+    aFrame.SetTxDelay(txDelay);
+    aFrame.SetTxDelayBaseTime(
+        static_cast<uint32_t>(mCslTxChild->GetLastRxTimestamp())); // Only LSB part of the time is required.
+    aFrame.SetCsmaCaEnabled(false);
 
 exit:
     return error;
@@ -212,7 +214,7 @@ void CslTxScheduler::HandleSentFrame(const Mac::TxFrame &aFrame, otError aError)
 {
     Child *child = mCslTxChild;
 
-    VerifyOrExit(child != nullptr, OT_NOOP); // The result is no longer interested by upper layer
+    VerifyOrExit(child != nullptr); // The result is no longer interested by upper layer
 
     mCslTxChild   = nullptr;
     mCslTxMessage = nullptr;

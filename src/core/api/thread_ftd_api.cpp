@@ -37,6 +37,7 @@
 
 #include <openthread/thread_ftd.h>
 
+#include "backbone_router/bbr_manager.hpp"
 #include "common/instance.hpp"
 #include "common/locator-getters.hpp"
 #include "thread/mle_types.hpp"
@@ -273,27 +274,27 @@ otError otThreadGetChildInfoByIndex(otInstance *aInstance, uint16_t aChildIndex,
 
 otError otThreadGetChildNextIp6Address(otInstance *               aInstance,
                                        uint16_t                   aChildIndex,
-                                       otChildIp6AddressIterator *aIterIndex,
+                                       otChildIp6AddressIterator *aIterator,
                                        otIp6Address *             aAddress)
 {
     otError      error    = OT_ERROR_NONE;
     Instance &   instance = *static_cast<Instance *>(aInstance);
     const Child *child;
 
-    OT_ASSERT(aIterIndex != nullptr && aAddress != nullptr);
+    OT_ASSERT(aIterator != nullptr && aAddress != nullptr);
 
     child = instance.Get<ChildTable>().GetChildAtIndex(aChildIndex);
     VerifyOrExit(child != nullptr, error = OT_ERROR_INVALID_ARGS);
     VerifyOrExit(child->IsStateValidOrRestoring(), error = OT_ERROR_INVALID_ARGS);
 
     {
-        Child::AddressIterator iter(*child, *aIterIndex);
+        Child::AddressIterator iter(*child, *aIterator);
 
         VerifyOrExit(!iter.IsDone(), error = OT_ERROR_NOT_FOUND);
         *aAddress = *iter.GetAddress();
 
         iter++;
-        *aIterIndex = iter.GetAsIndex();
+        *aIterator = iter.GetAsIndex();
     }
 
 exit:
@@ -391,4 +392,33 @@ void otThreadSetDiscoveryRequestCallback(otInstance *                     aInsta
 
     instance.Get<Mle::MleRouter>().SetDiscoveryRequestCallback(aCallback, aContext);
 }
+
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+void otThreadSendAddressNotification(otInstance *              aInstance,
+                                     otIp6Address *            aDestination,
+                                     otIp6Address *            aTarget,
+                                     otIp6InterfaceIdentifier *aMlIid)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    instance.Get<AddressResolver>().SendAddressQueryResponse(static_cast<Ip6::Address &>(*aTarget),
+                                                             static_cast<Ip6::InterfaceIdentifier &>(*aMlIid), nullptr,
+                                                             static_cast<Ip6::Address &>(*aDestination));
+}
+
+#if OPENTHREAD_CONFIG_BACKBONE_ROUTER_ENABLE
+otError otThreadSendProactiveBackboneNotification(otInstance *              aInstance,
+                                                  otIp6Address *            aTarget,
+                                                  otIp6InterfaceIdentifier *aMlIid,
+                                                  uint32_t                  aTimeSinceLastTransaction)
+{
+    Instance &instance = *static_cast<Instance *>(aInstance);
+
+    return instance.Get<BackboneRouter::Manager>().SendProactiveBackboneNotification(
+        static_cast<Ip6::Address &>(*aTarget), static_cast<Ip6::InterfaceIdentifier &>(*aMlIid),
+        aTimeSinceLastTransaction);
+}
+#endif
+#endif
+
 #endif // OPENTHREAD_FTD

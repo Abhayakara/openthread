@@ -120,6 +120,7 @@ size_nrf52840_version()
         "JOINER=1"
         "LINK_RAW=1"
         "MAC_FILTER=1"
+        "MESSAGE_USE_HEAP=1"
         "MTD_NETDIAG=1"
         "SERVICE=1"
         "SLAAC=1"
@@ -136,7 +137,8 @@ size_nrf52840_version()
             "BACKBONE_ROUTER=1"
             "DUA=1"
             "MLR=1"
-            # "CSL_RECEIVER=1" not supported on nrf52840 yet
+            "CSL_RECEIVER=1"
+            "LINK_METRICS=1"
         )
     fi
 

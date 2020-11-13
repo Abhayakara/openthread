@@ -58,12 +58,6 @@ void SuccessRateTracker::AddSample(bool aSuccess, uint16_t aWeight)
     mFailureRate = static_cast<uint16_t>(((oldAverage * (n - 1)) + newValue + (n / 2)) / n);
 }
 
-void RssAverager::Reset(void)
-{
-    mAverage = 0;
-    mCount   = 0;
-}
-
 otError RssAverager::Add(int8_t aRss)
 {
     otError  error = OT_ERROR_NONE;
@@ -114,28 +108,41 @@ RssAverager::InfoString RssAverager::ToString(void) const
 {
     InfoString string;
 
-    VerifyOrExit(mCount != 0, OT_NOOP);
+    VerifyOrExit(mCount != 0);
     IgnoreError(string.Set("%d.%s", -(mAverage >> kPrecisionBitShift), kDigitsString[mAverage & kPrecisionBitMask]));
 
 exit:
     return string;
 }
 
+void LqiAverager::Add(uint8_t aLqi)
+{
+    uint8_t count;
+
+    if (mCount < UINT8_MAX)
+    {
+        mCount++;
+    }
+    count = OT_MIN((1 << kCoeffBitShift), mCount);
+
+    mAverage = static_cast<uint8_t>(((mAverage * (count - 1)) + aLqi) / count);
+}
+
 void LinkQualityInfo::Clear(void)
 {
-    mRssAverager.Reset();
+    mRssAverager.Clear();
     SetLinkQuality(0);
     mLastRss = OT_RADIO_RSSI_INVALID;
 
-    mFrameErrorRate.Reset();
-    mMessageErrorRate.Reset();
+    mFrameErrorRate.Clear();
+    mMessageErrorRate.Clear();
 }
 
 void LinkQualityInfo::AddRss(int8_t aRss)
 {
     uint8_t oldLinkQuality = kNoLinkQuality;
 
-    VerifyOrExit(aRss != OT_RADIO_RSSI_INVALID, OT_NOOP);
+    VerifyOrExit(aRss != OT_RADIO_RSSI_INVALID);
 
     mLastRss = aRss;
 

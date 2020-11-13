@@ -64,10 +64,10 @@ public:
     }
 
     /**
-     * This method starts the TMF agent.
+     * This method starts the Backbone TMF agent.
      *
      * @retval OT_ERROR_NONE    Successfully started the CoAP service.
-     * @retval OT_ERROR_ALREADY Already started.
+     * @retval OT_ERROR_FAILED  Failed to start the Backbone TMF agent.
      *
      */
     otError Start(void);
@@ -80,6 +80,22 @@ public:
      *
      */
     bool IsBackboneTmfMessage(const Ip6::MessageInfo &aMessageInfo) const;
+
+    /**
+     * This method subscribes the Backbone TMF socket to a given Ip6 multicast group on the Backbone network.
+     *
+     * @param[in] aAddress  The Ip6 multicast group address.
+     *
+     */
+    void SubscribeMulticast(const Ip6::Address &aAddress);
+
+    /**
+     * This method unsubscribes the Backbone TMF socket from a given Ip6 multicast group on the Backbone network.
+     *
+     * @param[in] aAddress  The Ip6 multicast group address.
+     *
+     */
+    void UnsubscribeMulticast(const Ip6::Address &aAddress);
 
 private:
     static otError Filter(const ot::Coap::Message &aMessage, const Ip6::MessageInfo &aMessageInfo, void *aContext);

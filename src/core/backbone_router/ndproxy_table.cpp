@@ -49,9 +49,13 @@ void NdProxyTable::NdProxy::Init(const Ip6::InterfaceIdentifier &aAddressIid,
 {
     OT_ASSERT(!mValid);
 
+    Clear();
+
     mValid        = true;
     mAddressIid   = aAddressIid;
     mMeshLocalIid = aMeshLocalIid;
+    mDadFlag      = true;
+
     Update(aRloc16, aTimeSinceLastTransaction);
 }
 
@@ -76,6 +80,9 @@ bool NdProxyTable::MatchesFilter(const NdProxy &aProxy, Filter aFilter)
         break;
     case kFilterValid:
         rval = aProxy.mValid;
+        break;
+    case kFilterDadInProcess:
+        rval = aProxy.mValid && aProxy.mDadFlag;
         break;
     }
 
@@ -113,9 +120,9 @@ void NdProxyTable::Iterator::Advance(void)
     } while (mCurrent < OT_ARRAY_END(table.mProxies) && !MatchesFilter(*mCurrent, mFilter));
 }
 
-void NdProxyTable::Erase(NdProxy &aProxy)
+void NdProxyTable::Erase(NdProxy &aNdProxy)
 {
-    aProxy.Clear();
+    aNdProxy.mValid = false;
 }
 
 void NdProxyTable::HandleDomainPrefixUpdate(Leader::DomainPrefixState aState)
@@ -132,6 +139,11 @@ void NdProxyTable::Clear(void)
     for (NdProxy &proxy : mProxies)
     {
         proxy.Clear();
+    }
+
+    if (mCallback != nullptr)
+    {
+        mCallback(mCallbackContext, OT_BACKBONE_ROUTER_NDPROXY_CLEARED, nullptr);
     }
 
     otLogNoteBbr("NdProxyTable::Clear!");
@@ -151,12 +163,14 @@ otError NdProxyTable::Register(const Ip6::InterfaceIdentifier &aAddressIid,
         VerifyOrExit(proxy->mMeshLocalIid == aMeshLocalIid, error = OT_ERROR_DUPLICATED);
 
         proxy->Update(aRloc16, timeSinceLastTransaction);
+        NotifyDuaRegistrationOnBackboneLink(*proxy, /* aIsRenew */ true);
         ExitNow();
     }
 
     proxy = FindByMeshLocalIid(aMeshLocalIid);
     if (proxy != nullptr)
     {
+        TriggerCallback(OT_BACKBONE_ROUTER_NDPROXY_REMOVED, proxy->mAddressIid);
         Erase(*proxy);
     }
     else
@@ -168,6 +182,7 @@ otError NdProxyTable::Register(const Ip6::InterfaceIdentifier &aAddressIid,
     }
 
     proxy->Init(aAddressIid, aMeshLocalIid, aRloc16, timeSinceLastTransaction);
+    mIsAnyDadInProcess = true;
 
 exit:
     otLogInfoBbr("NdProxyTable::Register %s MLIID %s RLOC16 %04x LTT %u => %s", aAddressIid.ToString().AsCString(),
@@ -223,6 +238,123 @@ NdProxyTable::NdProxy *NdProxyTable::FindInvalid(void)
 exit:
     otLogDebgBbr("NdProxyTable::FindInvalid() => %s", found ? "OK" : "NOT_FOUND");
     return found;
+}
+
+void NdProxyTable::HandleTimer(void)
+{
+    VerifyOrExit(mIsAnyDadInProcess);
+
+    mIsAnyDadInProcess = false;
+
+    for (NdProxy &proxy : Iterate(kFilterDadInProcess))
+    {
+        if (proxy.IsDadAttamptsComplete())
+        {
+            proxy.mDadFlag = false;
+            NotifyDuaRegistrationOnBackboneLink(proxy, /* aIsRenew */ false);
+        }
+        else
+        {
+            mIsAnyDadInProcess = true;
+
+            if (Get<BackboneRouter::Manager>().SendBackboneQuery(GetDua(proxy)) == OT_ERROR_NONE)
+            {
+                proxy.IncreaseDadAttampts();
+            }
+        }
+    }
+
+exit:
+    return;
+}
+
+void NdProxyTable::SetCallback(otBackboneRouterNdProxyCallback aCallback, void *aContext)
+{
+    mCallback        = aCallback;
+    mCallbackContext = aContext;
+}
+
+void NdProxyTable::TriggerCallback(otBackboneRouterNdProxyEvent    aEvent,
+                                   const Ip6::InterfaceIdentifier &aAddressIid) const
+{
+    Ip6::Address       dua;
+    const Ip6::Prefix *prefix = Get<BackboneRouter::Leader>().GetDomainPrefix();
+
+    VerifyOrExit(mCallback != nullptr);
+
+    OT_ASSERT(prefix != nullptr);
+
+    dua.SetPrefix(*prefix);
+    dua.SetIid(aAddressIid);
+
+    mCallback(mCallbackContext, aEvent, &dua);
+
+exit:
+    return;
+}
+
+void NdProxyTable::NotifyDadComplete(NdProxyTable::NdProxy &aNdProxy, bool aDuplicated)
+{
+    if (aDuplicated)
+    {
+        Erase(aNdProxy);
+    }
+    else
+    {
+        aNdProxy.mDadAttempts = Mle::kDuaDadRepeats;
+    }
+}
+
+Ip6::Address NdProxyTable::GetDua(NdProxy &aNdProxy)
+{
+    Ip6::Address       dua;
+    const Ip6::Prefix *domainPrefix = Get<BackboneRouter::Leader>().GetDomainPrefix();
+
+    OT_ASSERT(domainPrefix != nullptr);
+
+    dua.SetPrefix(*domainPrefix);
+    dua.SetIid(aNdProxy.mAddressIid);
+
+    return dua;
+}
+
+NdProxyTable::NdProxy *NdProxyTable::ResolveDua(const Ip6::Address &aDua)
+{
+    return Get<Leader>().IsDomainUnicast(aDua) ? FindByAddressIid(aDua.GetIid()) : nullptr;
+}
+
+void NdProxyTable::NotifyDuaRegistrationOnBackboneLink(NdProxyTable::NdProxy &aNdProxy, bool aIsRenew)
+{
+    if (!aNdProxy.mDadFlag)
+    {
+        TriggerCallback(aIsRenew ? OT_BACKBONE_ROUTER_NDPROXY_RENEWED : OT_BACKBONE_ROUTER_NDPROXY_ADDED,
+                        aNdProxy.mAddressIid);
+
+        IgnoreError(Get<BackboneRouter::Manager>().SendProactiveBackboneNotification(
+            GetDua(aNdProxy), aNdProxy.GetMeshLocalIid(), aNdProxy.GetTimeSinceLastTransaction()));
+    }
+}
+
+otError NdProxyTable::GetInfo(const Ip6::Address &aDua, otBackboneRouterNdProxyInfo &aNdProxyInfo)
+{
+    otError error = OT_ERROR_NOT_FOUND;
+
+    VerifyOrExit(Get<Leader>().IsDomainUnicast(aDua), error = OT_ERROR_INVALID_ARGS);
+
+    for (NdProxy &proxy : Iterate(kFilterValid))
+    {
+        if (proxy.mAddressIid == aDua.GetIid())
+        {
+            aNdProxyInfo.mMeshLocalIid             = &proxy.mMeshLocalIid;
+            aNdProxyInfo.mTimeSinceLastTransaction = proxy.GetTimeSinceLastTransaction();
+            aNdProxyInfo.mRloc16                   = proxy.mRloc16;
+
+            ExitNow(error = OT_ERROR_NONE);
+        }
+    }
+
+exit:
+    return error;
 }
 
 } // namespace BackboneRouter

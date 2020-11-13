@@ -39,6 +39,7 @@
 #include <openthread/link.h>
 
 #include "common/locator.hpp"
+#include "common/non_copyable.hpp"
 #include "common/timer.hpp"
 #include "mac/mac_frame.hpp"
 #include "radio/radio.hpp"
@@ -74,7 +75,7 @@ namespace Mac {
  * addresses and PAN Id.
  *
  */
-class SubMac : public InstanceLocator
+class SubMac : public InstanceLocator, private NonCopyable
 {
     friend class Radio::Callbacks;
 
@@ -305,12 +306,15 @@ public:
      * started, `mState` will become `kStateCslSample`. But it could be doing `Sleep` or `Receive` at this moment
      * (depending on `mCslState`).
      *
+     * @param[in]  aPanChannel  The current phy channel used by the device. This param will only take effect when CSL
+     *                          channel hasn't been explicitly specified.
+     *
      * @retval OT_ERROR_NONE          Successfully entered CSL operation (sleep or receive according to CSL timer).
      * @retval OT_ERROR_BUSY          The radio was transmitting.
      * @retval OT_ERROR_INVALID_STATE The radio was disabled.
      *
      */
-    otError CslSample(void);
+    otError CslSample(uint8_t aPanChannel);
 #endif
 
     /**
@@ -384,10 +388,24 @@ public:
     /**
      * This method sets the CSL channel.
      *
-     * @param[in]  aChannel  The CSL channel.
+     * @param[in]  aChannel  The CSL channel. `0` to set CSL Channel unspecified.
      *
      */
     void SetCslChannel(uint8_t aChannel);
+
+    /**
+     * This method indicates if CSL channel has been explicitly specified by the upper layer.
+     *
+     * @returns If CSL channel has been specified.
+     *
+     */
+    bool IsCslChannelSpecified(void) const { return mIsCslChannelSpecified; }
+
+    /**
+     * This method sets the flag representing if CSL channel has been specified.
+     *
+     */
+    void SetCslChannelSpecified(bool aIsSpecified) { mIsCslChannelSpecified = aIsSpecified; }
 
     /**
      * This method gets the CSL period.
@@ -472,7 +490,7 @@ public:
      * @returns The current MAC frame counter value.
      *
      */
-    uint32_t GetFrameCounter(void) const { return mFrameCounter; };
+    uint32_t GetFrameCounter(void) const { return mFrameCounter; }
 
     /**
      * This method sets the current MAC Frame Counter value.
@@ -521,12 +539,13 @@ private:
     };
 
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    /**
-     * The SSED sample window in units of 10 symbols.
-     *
-     */
     enum : uint32_t{
-        kCslSampleWindow = OPENTHREAD_CONFIG_CSL_SAMPLE_WINDOW * kUsPerTenSymbols,
+        kCslSampleWindow =
+            OPENTHREAD_CONFIG_CSL_SAMPLE_WINDOW * kUsPerTenSymbols, ///< The SSED sample window in units of 10 symbols.
+        kCslReceiveTimeAhead =
+            OPENTHREAD_CONFIG_CSL_RECEIVE_TIME_AHEAD, ///< CSL receivers would wake up `kCslReceiveTimeAhead` earlier
+                                                      ///< than expected sample window. The time is in unit of 10
+                                                      ///< symbols.
     };
 
     /**
@@ -566,7 +585,7 @@ private:
 
     void HandleReceiveDone(RxFrame *aFrame, otError aError);
     void HandleTransmitStarted(TxFrame &aFrame);
-    void HandleTransmitDone(TxFrame &aTxFrame, RxFrame *aAckFrame, otError aError);
+    void HandleTransmitDone(TxFrame &aFrame, RxFrame *aAckFrame, otError aError);
     void UpdateFrameCounterOnTxDone(const TxFrame &aFrame);
     void HandleEnergyScanDone(int8_t aMaxRssi);
 
@@ -604,10 +623,13 @@ private:
 #endif
 
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    uint32_t  mCslTimeout;    ///< The CSL synchronized timeout in seconds.
-    TimeMicro mCslSampleTime; ///< The CSL sample time of the current period.
-    uint16_t  mCslPeriod;     ///< The CSL sample period, in units of 10 symbols (160 microseconds).
-    uint8_t   mCslChannel;    ///< The CSL sample channel.
+    uint32_t  mCslTimeout;     ///< The CSL synchronized timeout in seconds.
+    TimeMicro mCslSampleTime;  ///< The CSL sample time of the current period.
+    uint16_t  mCslPeriod;      ///< The CSL sample period, in units of 10 symbols (160 microseconds).
+    uint8_t   mCslChannel : 7; ///< The actually CSL sample channel. If `mIsCslChannelSpecified` is 0, this should be
+                               ///< equal to the Pan channel of `Mac`.
+    uint8_t mIsCslChannelSpecified : 1; ///< Indicates whether or not the CSL channel was explicitly specified by
+                                        ///< the user.
 
     CslState mCslState;
 

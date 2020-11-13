@@ -30,9 +30,9 @@
 source "tests/scripts/expect/_common.exp"
 source "tests/scripts/expect/_multinode.exp"
 
-setup_nodes
+setup_two_nodes
 
-set spawn_id $spawn_1
+switch_node 1
 send "dataset active\n"
 expect -re {Active Timestamp: \d+}
 expect -re {Channel: (\d+)}
@@ -140,7 +140,7 @@ expect "Done"
 
 sleep 30
 
-set spawn_id $spawn_2
+switch_node 2
 wait_for "dataset active" "Active Timestamp: 100"
 expect "Done"
 send "dataset active\n"
@@ -182,36 +182,36 @@ expect "Done"
 send "dataset init pending\n"
 expect "Error 23: NotFound"
 
-set spawn_id $spawn_1
+switch_node 1
 send "ipaddr mleid\n"
 expect "ipaddr mleid"
 expect -re {(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4})}
 set addr $expect_out(1,string)
 expect "Done"
 
-set spawn_id $spawn_2
+switch_node 2
 send "dataset mgmtgetcommand active \
 activetimestamp pendingtimestamp masterkey networkname extpanid \
 localprefix delaytimer panid channel \
-binary 000102030405060708090a0b0e0f0c333435 \
+-x 000102030405060708090a0b0e0f0c333435 \
 address $addr\n"
 expect "Done"
 send "dataset mgmtgetcommand pending \
 activetimestamp pendingtimestamp masterkey networkname extpanid \
 localprefix delaytimer panid channel \
-binary 000102030405060708090a0b0e0f0c333435 \
+-x 000102030405060708090a0b0e0f0c333435 \
 address $addr\n"
 expect "Done"
 
-set spawn_id $spawn_1
-send "dataset active binary\n"
-expect "dataset active binary"
+switch_node 1
+send "dataset active -x\n"
+expect "dataset active -x"
 expect -re {([0-9a-f]+)}
 set binary $expect_out(1,string)
 expect "Done"
 send "dataset set pending $binary\n"
 expect "Done"
-send "dataset pending binary\n"
+send "dataset pending -x\n"
 expect $binary
 expect "Done"
 send "dataset set active $binary\n"
@@ -243,4 +243,4 @@ expect "Error 7: InvalidArgs"
 send "dataset set something_invalid 00\n"
 expect "Error 7: InvalidArgs"
 
-dispose_nodes
+dispose_all

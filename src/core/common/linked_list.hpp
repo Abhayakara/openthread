@@ -259,9 +259,7 @@ public:
      */
     template <typename Indicator> bool ContainsMatching(const Indicator &aIndicator) const
     {
-        const Type *prev;
-
-        return FindMatching(aIndicator, prev) != nullptr;
+        return FindMatching(aIndicator) != nullptr;
     }
 
     /**
@@ -412,10 +410,10 @@ public:
      * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
      *
      */
-    template <typename Inidcator>
+    template <typename Indicator>
     const Type *FindMatching(const Type *     aBegin,
                              const Type *     aEnd,
-                             const Inidcator &aIndicator,
+                             const Indicator &aIndicator,
                              const Type *&    aPrevEntry) const
     {
         const Type *entry;
@@ -453,8 +451,8 @@ public:
      * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
      *
      */
-    template <typename Inidcator>
-    Type *FindMatching(const Type *aBegin, const Type *aEnd, const Inidcator &aIndicator, Type *&aPrevEntry)
+    template <typename Indicator>
+    Type *FindMatching(const Type *aBegin, const Type *aEnd, const Indicator &aIndicator, Type *&aPrevEntry)
     {
         return const_cast<Type *>(FindMatching(aBegin, aEnd, aIndicator, const_cast<const Type *&>(aPrevEntry)));
     }
@@ -476,7 +474,7 @@ public:
      * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
      *
      */
-    template <typename Inidcator> const Type *FindMatching(const Inidcator &aIndicator, const Type *&aPrevEntry) const
+    template <typename Indicator> const Type *FindMatching(const Indicator &aIndicator, const Type *&aPrevEntry) const
     {
         return FindMatching(mHead, nullptr, aIndicator, aPrevEntry);
     }
@@ -499,10 +497,50 @@ public:
      * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
      *
      */
-    template <typename Inidcator> Type *FindMatching(const Inidcator &aIndicator, Type *&aPrevEntry)
+    template <typename Indicator> Type *FindMatching(const Indicator &aIndicator, Type *&aPrevEntry)
     {
         return const_cast<Type *>(
             const_cast<const LinkedList *>(this)->FindMatching(aIndicator, const_cast<const Type *&>(aPrevEntry)));
+    }
+
+    /**
+     * This template method searches within the linked list to find an entry matching a given indicator.
+     *
+     * The template type `Indicator` specifies the type of @p aIndicator object which is used to match against entries
+     * in the list. To check that an entry matches the given indicator, the `Matches()` method is invoked on each
+     * `Type` entry in the list. The `Matches()` method should be provided by `Type` class accordingly:
+     *
+     *     bool Type::Matches(const Indicator &aIndicator) const
+     *
+     * @param[in]  aIndicator  An indicator to match with entries in the list.
+     *
+     * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
+     *
+     */
+    template <typename Indicator> const Type *FindMatching(const Indicator &aIndicator) const
+    {
+        const Type *prev;
+
+        return FindMatching(aIndicator, prev);
+    }
+
+    /**
+     * This template method searches within the linked list to find an entry matching a given indicator.
+     *
+     * The template type `Indicator` specifies the type of @p aIndicator object which is used to match against entries
+     * in the list. To check that an entry matches the given indicator, the `Matches()` method is invoked on each
+     * `Type` entry in the list. The `Matches()` method should be provided by `Type` class accordingly:
+     *
+     *     bool Type::Matches(const Indicator &aIndicator) const
+     *
+     * @param[in]  aIndicator  An indicator to match with entries in the list.
+     *
+     * @returns A pointer to the matching entry if one is found, or nullptr if no matching entry was found.
+     *
+     */
+    template <typename Indicator> Type *FindMatching(const Indicator &aIndicator)
+    {
+        return const_cast<Type *>(const_cast<const LinkedList *>(this)->FindMatching(aIndicator));
     }
 
     /**

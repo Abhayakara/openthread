@@ -215,11 +215,11 @@ void otPlatRadioSetExtendedAddress(otInstance *aInstance, const otExtAddress *aE
     }
 }
 
-void otPlatRadioSetShortAddress(otInstance *aInstance, uint16_t aShortAddr)
+void otPlatRadioSetShortAddress(otInstance *aInstance, uint16_t aShortAddress)
 {
     if (g_testPlatRadioSetShortAddress)
     {
-        g_testPlatRadioSetShortAddress(aInstance, aShortAddr);
+        g_testPlatRadioSetShortAddress(aInstance, aShortAddress);
     }
 }
 
@@ -302,7 +302,7 @@ otRadioFrame *otPlatRadioGetTransmitBuffer(otInstance *aInstance)
     }
     else
     {
-        return (otRadioFrame *)0;
+        return nullptr;
     }
 }
 

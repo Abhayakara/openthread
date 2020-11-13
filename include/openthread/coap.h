@@ -747,7 +747,7 @@ const otCoapOption *otCoapOptionIteratorGetNextOption(otCoapOptionIterator *aIte
  *
  * @see otCoapMessageAppendUintOption
  */
-otError otCoapOptionIteratorGetOptionUintValue(otCoapOptionIterator *aIterator, uint64_t *const aValue);
+otError otCoapOptionIteratorGetOptionUintValue(otCoapOptionIterator *aIterator, uint64_t *aValue);
 
 /**
  * This function fills current option value into @p aValue.
@@ -826,6 +826,7 @@ static inline otError otCoapSendRequest(otInstance *          aInstance,
                                         otCoapResponseHandler aHandler,
                                         void *                aContext)
 {
+    // NOLINTNEXTLINE(modernize-use-nullptr)
     return otCoapSendRequestWithParameters(aInstance, aMessage, aMessageInfo, aHandler, aContext, NULL);
 }
 
@@ -835,7 +836,8 @@ static inline otError otCoapSendRequest(otInstance *          aInstance,
  * @param[in]  aInstance  A pointer to an OpenThread instance.
  * @param[in]  aPort      The local UDP port to bind to.
  *
- * @retval OT_ERROR_NONE  Successfully started the CoAP server.
+ * @retval OT_ERROR_NONE    Successfully started the CoAP server.
+ * @retval OT_ERROR_FAILED  Failed to start the CoAP server.
  *
  */
 otError otCoapStart(otInstance *aInstance, uint16_t aPort);
@@ -908,6 +910,7 @@ otError otCoapSendResponseWithParameters(otInstance *              aInstance,
  */
 static inline otError otCoapSendResponse(otInstance *aInstance, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
+    // NOLINTNEXTLINE(modernize-use-nullptr)
     return otCoapSendResponseWithParameters(aInstance, aMessage, aMessageInfo, NULL);
 }
 

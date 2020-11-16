@@ -128,7 +128,6 @@ static otError transmitPacket(int aFd, uint8_t *aPayload, uint16_t aLength, cons
         controlLength += CMSG_SPACE(sizeof(int));
     }
 
-    // if (!IsMulticast(*reinterpret_cast<const struct in6_addr *>((void *)&aMessageInfo.mSockAddr)) &&
     if (!IsMulticast(aMessageInfo.mSockAddr) &&
         memcmp(&aMessageInfo.mSockAddr, &in6addr_any, sizeof(aMessageInfo.mSockAddr)))
     {

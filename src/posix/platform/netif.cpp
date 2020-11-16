@@ -1074,7 +1074,6 @@ static void processNetlinkEvent(otInstance *aInstance)
     VerifyOrExit(length > 0);
 
 #if defined(__linux__)
-    // for (struct nlmsghdr *msg = reinterpret_cast<struct nlmsghdr *>((void *)buffer); NLMSG_OK(msg, static_cast<size_t>(length));
     for (struct nlmsghdr *msg = &msgBuffer.nlMsg; NLMSG_OK(msg, static_cast<size_t>(length));
          msg                  = NLMSG_NEXT(msg, length))
     {
@@ -1227,7 +1226,6 @@ static void processMLDEvent(otInstance *aInstance)
         {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
-            // struct sockaddr_in6 *addr6 = reinterpret_cast<struct sockaddr_in6 *>((void *)ifAddr->ifa_addr);
             struct sockaddr_in6 *addr6 = reinterpret_cast<struct sockaddr_in6 *>(ifAddr->ifa_addr);
 #pragma GCC diagnostic pop
 
